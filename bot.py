@@ -1,59 +1,33 @@
-import requests, time, os
-TOKEN = os.getenv("TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+import requests, os
 
-# Añadido VVVEUR que te faltaba
-MONEDAS = ["BTCEUR","SOLEUR","XRPEUR","ETHEUR","ADAEUR","LINKEUR","UNIEUR","DOGEEUR","AVAXEUR","NEAREUR","FETEUR","HBAREUR","XLMEUR","BCHEUR","SUIEUR","DOTEUR","QNTEUR","TRXEUR","RENDEREUR","LTCEUR","ALGOEUR","ETCEUR","AAVEEUR","POLEUR","TRUMPEUR","GRTEUR","CRVEUR","GRAMEUR","IMXEUR","BATEUR","CHZEUR","YFIEUR","AXSEUR","SUSHIEUR","COMPEUR","SKYEUR","INJEUR","TAOEUR","PEPEEUR","SHIBEUR","VVVEUR"]
+TOKEN = os.environ.get("TOKEN")
+CHAT_ID = os.environ.get("CHAT_ID")
 
-def enviar(msg):
+MONEDAS = ["BTC","ETH","SOL","NEAR","UNI","AAVE","TAO","INJ","TRUMP","XRP","LINK","AVAX","DOT","ADA","HUMA","SKY","VVV"]
+
+def telegram(msg):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    try:
-        requests.post(url, data={"chat_id": CHAT_ID, "text": msg}, timeout=10)
-    except:
-        pass
+    requests.post(url, json={"chat_id": CHAT_ID, "text": msg})
 
-def datos(moneda):
-    base = moneda[:-3]
-    market = f"{base}-EUR"
-    url = f"https://api.bitvavo.com/v2/ticker/24h?market={market}"
-    r = requests.get(url, timeout=10).json()
-    d = r[0] if isinstance(r, list) else r
-    precio = float(d['last'])
-    apertura = float(d['open'])
-    cambio24 = (precio - apertura) / apertura * 100
-    # Volumen 24h en EUR, si no viene ponemos 0
-    volumen = float(d.get('volume', 0)) * precio
-    return precio, cambio24, volumen
+def get_ticker(market):
+    r = requests.get(f"https://api.bitvavo.com/v2/ticker/24h?market={market}-EUR", timeout=10).json()
+    if isinstance(r, list):
+        r = r[0]
+    return float(r["priceChangePercent"])
 
-def fmt(p):
-    if p < 0.01:
-        return f"{p:.8f}"
-    else:
-        return f"{p:.4f}"
-
-# 1. Primero cogemos BTC para comparar todo contra él
-try:
-    precio_btc, cambio_btc, vol_btc = datos("BTCEUR")
-    print(f"BTC referencia: {fmt(precio_btc)} € | 24h: {cambio_btc:+.2f}%")
-except:
-    cambio_btc = 0
-    print("No se pudo coger BTC, uso 0")
+btc_24h = get_ticker("BTC")
+if btc_24h < -1.5:
+    print(f"BTC en {btc_24h}%, freno activado, no aviso")
+    exit()
 
 for m in MONEDAS:
-    try:
-        p, c24, vol = datos(m)
-        time.sleep(0.3)
-        # 2. NUEVA FORMULA: fuerza relativa vs BTC
-        fuerza = c24 - cambio_btc
-        print(f"{m}: {fmt(p)} € | 24h: {c24:+.2f}% | vs BTC: {fuerza:+.2f}% | Vol: {vol:,.0f}€")
-
-        # 3. NUEVOS UMBRALES: +3% vs BTC = FUERTE, +2% vs BTC = TEMPRANO, con volumen 400K€
-        if fuerza >= 3 and vol >= 400000:
-            enviar(f"🟢 FUERTE - MIRAR {m} | Precio: {fmt(p)} € | 24h: {c24:+.2f}% | vs BTC: {fuerza:+.2f}% | Vol: {vol:,.0f}€ | POSIBLE ENTRADA")
-        elif fuerza >= 2 and vol >= 400000:
-            enviar(f"🟡 TEMPRANO - MIRAR {m} | Precio: {fmt(p)} € | 24h: {c24:+.2f}% | vs BTC: {fuerza:+.2f}% | Vol: {vol:,.0f}€ | Vigilar, posicion pequeña")
-    except Exception as e:
-        print(f"Error en {m}: {e}")
+    if m == "BTC":
         continue
-
-print("Revision hecha")
+    try:
+        cambio_24h = get_ticker(m)
+    except:
+        continue
+    vs_btc = cambio_24h - btc_24h
+    if cambio_24h > 2.0 and vs_btc > 2.0:
+        telegram(f"🐎 FUERTE - MIRAR {m}EUR\n24h: +{cambio_24h:.2f}%\nvs BTC: +{vs_btc:.2f}%\nBTC 24h: {btc_24h:.2f}%\nRevisa en 15m si sigue verde antes de entrar")
+        print(f"Aviso {m}")
