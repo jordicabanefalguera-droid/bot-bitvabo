@@ -15,8 +15,14 @@ def get_data(market):
         r = r[0]
     price = float(r.get("price", 0))
     vol = float(r.get("volume", 0))
-    if "priceChangePercent" in r:
-        cambio = float(r["priceChangePercent"])
+
+    # Bitvavo usa priceChangePercentage, no priceChangePercent
+    if "priceChangePercentage" in r:
+        cambio = float(r["priceChangePercentage"])
+    elif "priceChange" in r and price != 0:
+        # cambio = cambio_absoluto / precio_de_ayer * 100
+        pc = float(r["priceChange"])
+        cambio = pc / (price - pc) * 100 if (price - pc) != 0 else 0.0
     elif "open" in r and float(r["open"]) != 0:
         cambio = (price - float(r["open"])) / float(r["open"]) * 100
     else:
