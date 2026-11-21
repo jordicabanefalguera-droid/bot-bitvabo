@@ -27,7 +27,7 @@ def get_data(market):
 
 btc_price, btc_24h, _ = get_data("BTC")
 print(f"BTC precio: {btc_price} 24h: {btc_24h}%")
-if btc_24h < -1.5:
+if btc_24h < -4.0:
     print("Freno BTC")
     exit()
 
