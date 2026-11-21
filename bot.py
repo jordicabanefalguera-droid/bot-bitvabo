@@ -10,27 +10,23 @@ def telegram(msg):
     requests.post(url, json={"chat_id": CHAT_ID, "text": msg})
 
 def get_data(market):
-    r = requests.get(f"https://api.bitvavo.com/v2/ticker/24h?market={market}-EUR", timeout=10).json()
+    # Precio actual
+    r = requests.get(f"https://api.bitvavo.com/v2/ticker/price?market={market}-EUR", timeout=10).json()
     if isinstance(r, list):
         r = r[0]
     price = float(r.get("price", 0))
-    vol = float(r.get("volume", 0))
 
-    # Bitvavo usa priceChangePercentage, no priceChangePercent
-    if "priceChangePercentage" in r:
-        cambio = float(r["priceChangePercentage"])
-    elif "priceChange" in r and price != 0:
-        # cambio = cambio_absoluto / precio_de_ayer * 100
-        pc = float(r["priceChange"])
-        cambio = pc / (price - pc) * 100 if (price - pc) != 0 else 0.0
-    elif "open" in r and float(r["open"]) != 0:
-        cambio = (price - float(r["open"])) / float(r["open"]) * 100
-    else:
-        cambio = 0.0
+    # Vela de 1 dia: [timestamp, open, high, low, close, volume]
+    c = requests.get(f"https://api.bitvavo.com/v2/{market}-EUR/candles?interval=1d&limit=2", timeout=10).json()
+    # c puede venir como lista de listas
+    last = c[-1]
+    open_price = float(last[1])
+    vol = float(last[5])
+    cambio = (price - open_price) / open_price * 100 if open_price != 0 else 0.0
     return price, cambio, vol
 
 btc_price, btc_24h, _ = get_data("BTC")
-print(f"BTC 24h: {btc_24h}%")
+print(f"BTC precio: {btc_price} 24h: {btc_24h}%")
 if btc_24h < -1.5:
     print("Freno BTC")
     exit()
